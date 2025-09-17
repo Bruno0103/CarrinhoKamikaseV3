@@ -2,47 +2,29 @@
 #include <ESP32Servo.h>
 #include <L298N.h>
 #include <cstdint>
-
-// Nome do Bluetooth:
-String deviceName = "Carrinho Kamikase";
+#include <NewPing.h> // 1. INCLUIR A BIBLIOTECA
 
 // --- PINOS ---
-// Servo motor
 const int pinoServo = 15;
-// Ponte H L298N para o motor DC
 const int pinoEN = 14;
 const int pinoINA = 12;
 const int pinoINB = 13;
-// Sensor Ultrassônico HC-SR04
 const int pinoTrig = 2;
 const int pinoEcho = 4;
 
-// --- CONFIGURAÇÕES DO SENSOR ---
-const float VELOCIDADE_SOM = 0.0343; // cm/µs
-const long INTERVALO_MEDICAO = 100; // Medir a cada 100ms
-volatile long tempoInicioEcho = 0;
-volatile long tempoFimEcho = 0;
-volatile boolean novaMedicaoPronta = false;
+// --- CONFIGURAÇÕES ---
+String deviceName = "Carrinho Kamikase";
+const int MAX_DISTANCIA = 50; // Distância máxima a ser medida (em cm)
 
-// --- VARIÁVEIS GLOBAIS ---
+// --- OBJETOS E VARIÁVEIS GLOBAIS ---
 BluetoothSerial SerialBT;
 Servo servo;
 L298N motorDC(pinoEN, pinoINA, pinoINB);
-float distanciaAtual = 100.0; // Armazena a última distância medida
-long tempoUltimaMedicao = 0;
 
-// --- FUNÇÕES AUXILIARES ---
+// 2. CRIAR O OBJETO DO SENSOR COM A NewPing
+NewPing sonar(pinoTrig, pinoEcho, MAX_DISTANCIA);
 
-// ISR (Rotina de Interrupção) para capturar o pulso do sensor
-// Executa em paralelo, sem travar o código principal
-void IRAM_ATTR isr_echo() {
-  if (digitalRead(pinoEcho) == HIGH) {
-    tempoInicioEcho = micros();
-  } else {
-    tempoFimEcho = micros();
-    novaMedicaoPronta = true;
-  }
-}
+// --- FUNÇÕES ---
 
 // Controla o motor DC (frente, ré, parar)
 void controlarMotor(int16_t velocidade) {
@@ -57,36 +39,22 @@ void controlarMotor(int16_t velocidade) {
   }
 }
 
-// --- LÓGICA PRINCIPAL DO SENSOR ULTRASSÔNICO ---
-// Esta função faz tudo relacionado ao sensor: dispara, calcula e atualiza a distância.
-void atualizarLeituraUltrassonica() {
-  // 1. Dispara um novo pulso a cada 'INTERVALO_MEDICAO' milissegundos
-  if (millis() - tempoUltimaMedicao >= INTERVALO_MEDICAO) {
-    tempoUltimaMedicao = millis();
-    
-    digitalWrite(pinoTrig, LOW);
-    delayMicroseconds(2);
-    digitalWrite(pinoTrig, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(pinoTrig, LOW);
-  }
+void setup() {
+  Serial.begin(115200);
+  SerialBT.begin(deviceName);
+  Serial.println("Carrinho pronto.");
 
-  // 2. Se a interrupção avisou que uma medição terminou, calcula a distância
-  if (novaMedicaoPronta) {
-    long duracao = tempoFimEcho - tempoInicioEcho;
-    distanciaAtual = (duracao * VELOCIDADE_SOM) / 2.0;
-    novaMedicaoPronta = false; // Prepara para a próxima leitura
-
-    // (Opcional) Imprime no monitor serial para depuração
-    Serial.print("Distancia: ");
-    Serial.print(distanciaAtual);
-    Serial.println(" cm");
-  }
+  servo.attach(pinoServo);
+  motorDC.setSpeed(0);
 }
 
-// --- LÓGICA DE CONTROLE VIA BLUETOOTH ---
-// Esta função lê os comandos e decide o que fazer com o carrinho.
-void processarComandosBluetooth() {
+void loop() {
+ 
+  //Serial.print("Distancia: ");
+  //Serial.println(sonar.ping_cm());
+  int distanciaAtual = sonar.ping_cm();
+  
+  // --- TAREFA 2: PROCESSAR COMANDOS BLUETOOTH ---
   if (SerialBT.available() >= 3) {
     uint8_t buffer[3];
     SerialBT.readBytes(buffer, 3);
@@ -96,40 +64,16 @@ void processarComandosBluetooth() {
 
     servo.write(direcao);
 
-    // LÓGICA DE DECISÃO PRINCIPAL (SIMPLIFICADA)
-    // Se a distância for menor ou igual a 5 cm E o comando for para FRENTE...
-    if (distanciaAtual <= 5.0 && velocidade > 0) {
-      // ...então, impeça o movimento, parando o motor.
+    // Lógica de decisão principal (inalterada)
+    if (distanciaAtual <= 20 && distanciaAtual != 0 && velocidade > 0) {
       motorDC.stop();
     } else {
-      // Para qualquer outra situação (sem obstáculo, ou andando de ré), obedeça o comando.
       controlarMotor(velocidade);
     }
   }
-}
-
-// --- SETUP E LOOP ---
-
-void setup() {
-  Serial.begin(115200);
-  SerialBT.begin(deviceName);
-  Serial.println("Carrinho pronto.");
-
-  servo.attach(pinoServo);
-  pinMode(pinoTrig, OUTPUT);
-  pinMode(pinoEcho, INPUT);
-
-  // Configura a interrupção que vai medir o tempo de resposta do sensor
-  attachInterrupt(digitalPinToInterrupt(pinoEcho), isr_echo, CHANGE);
-  
-  motorDC.setSpeed(0);
-}
-
-void loop() {
-  // A lógica agora é simples:
-  // 1. Cuide do sensor.
-  atualizarLeituraUltrassonica();
-  
-  // 2. Cuide dos comandos.
-  processarComandosBluetooth();
+  if (distanciaAtual <= 10 && distanciaAtual != 0) {
+    motorDC.backward();
+    delay(1000);
+    motorDC.stop();
+  }
 }
