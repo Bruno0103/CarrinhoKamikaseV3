@@ -2,7 +2,7 @@
 #include <ESP32Servo.h>
 #include <L298N.h>
 #include <cstdint>
-#include <NewPing.h> // 1. INCLUIR A BIBLIOTECA
+#include <NewPing.h>
 
 // --- PINOS ---
 const int pinoServo = 15;
@@ -21,7 +21,7 @@ BluetoothSerial SerialBT;
 Servo servo;
 L298N motorDC(pinoEN, pinoINA, pinoINB);
 
-// 2. CRIAR O OBJETO DO SENSOR COM A NewPing
+// CRIAR O OBJETO DO SENSOR COM A NewPing
 NewPing sonar(pinoTrig, pinoEcho, MAX_DISTANCIA);
 
 // --- FUNÇÕES ---
@@ -54,7 +54,7 @@ void loop() {
   //Serial.println(sonar.ping_cm());
   int distanciaAtual = sonar.ping_cm();
   
-  // --- TAREFA 2: PROCESSAR COMANDOS BLUETOOTH ---
+  // --- PROCESSAR COMANDOS BLUETOOTH ---
   if (SerialBT.available() >= 3) {
     uint8_t buffer[3];
     SerialBT.readBytes(buffer, 3);
@@ -64,7 +64,7 @@ void loop() {
 
     servo.write(direcao);
 
-    // Lógica de decisão principal (inalterada)
+    // Lógica de decisão principal
     if (distanciaAtual <= 20 && distanciaAtual != 0 && velocidade > 0) {
       motorDC.stop();
     } else {
