@@ -66,3 +66,15 @@ Este projeto reúne duas partes principais:
 - Implementar feedback de status de conexão mais detalhado.
 - Mostrar valores de distância e status de sensor no app.
 - Refatorar para maior separação entre UI e lógica de conexão.
+
+## Galeria de imagens
+
+Imagens do carrinho e do projeto, disponíveis em `README_IMG/`:
+
+![Carrinho 1](README_IMG/car1.jpeg)
+
+![Carrinho 2](README_IMG/car2.jpeg)
+
+![Carrinho 3](README_IMG/car3.jpeg)
+
+![Carrinho 4](README_IMG/car4.jpeg)
