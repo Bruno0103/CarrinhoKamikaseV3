@@ -1,4 +1,4 @@
-# CarrinhoV3
+# CarrinhoKamikaseV3
 
 Projeto de controle de um carrinho robô com interface Android e firmware ESP32.
 
