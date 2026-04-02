@@ -73,16 +73,7 @@ fun TelaControleRemoto() {
     var macAddressSelecionado by remember { mutableStateOf<String?>(null) }
     var dispositivosPareados by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
 
-    // Carrega os dispositivos pareados uma vez quando o Composable é iniciado
-    LaunchedEffect(Unit) {
-        val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
-        if (bluetoothAdapter == null) {
-            return@LaunchedEffect
-        }
-        dispositivosPareados = bluetoothAdapter?.bondedDevices?.map { device ->
-            Pair(device.name, device.address)
-        } ?: emptyList()
-    }
+
 
     fun enviarComando(velocidadeAtual: Short, direcaoAtual: Byte) {
         val buffer = byteArrayOf(
@@ -112,12 +103,47 @@ fun TelaControleRemoto() {
         }
         if (resetarDirecao) {
             direcao = centroDirecao.toFloatOrNull() ?: 90f
-
         }
         if (resetarVelocidade) {
             velocidade = 0f
         }
-        enviarComando(velocidade.toInt().toShort(), direcao.toInt().toByte())
+
+        // APAGUE OU COMENTE ESTA LINHA:
+        // enviarComando(velocidade.toInt().toShort(), direcao.toInt().toByte())
+    }
+
+    // Carrega os dispositivos pareados uma vez quando o Composable é iniciado
+    // --- LOOP DE ENVIO CONTROLADO (THROTTLE) ---
+    LaunchedEffect(Unit, statusConexao) {
+        // Só executa o loop de envio se estiver conectado
+        if (statusConexao == "Conectado") {
+            var ultimaVelocidadeEnviada: Short = -999 // Valor impossível para forçar o 1º envio
+            var ultimaDirecaoEnviada: Byte = -1
+
+            while (true) {
+                val velAtual = velocidade.toInt().toShort()
+                val dirAtual = direcao.toInt().toByte()
+
+                // Só envia se houver alguma mudança desde o último envio
+                if (velAtual != ultimaVelocidadeEnviada || dirAtual != ultimaDirecaoEnviada) {
+                    enviarComando(velAtual, dirAtual)
+
+                    // Atualiza o registro do último envio
+                    ultimaVelocidadeEnviada = velAtual
+                    ultimaDirecaoEnviada = dirAtual
+                }
+
+                // Pausa por 50ms (Limita a 20 comandos por segundo)
+                kotlinx.coroutines.delay(50)
+            }
+        }
+        val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+        if (bluetoothAdapter == null) {
+            return@LaunchedEffect
+        }
+        dispositivosPareados = bluetoothAdapter?.bondedDevices?.map { device ->
+            Pair(device.name, device.address)
+        } ?: emptyList()
     }
 
     val coroutineScope = rememberCoroutineScope()
@@ -196,9 +222,9 @@ fun TelaControleRemoto() {
                 onMacAddressChange = { macAddressSelecionado = it },
                 onConectarClick = { conectarBluetooth() }, // A lógica de conexão está agora em uma função separada
                 modifier = Modifier
-                    .fillMaxSize() // Ocupa todo o espaço do Box pai
                     .weight(1f)
-                    .padding(16.dp) 
+                    .fillMaxHeight() // Substitua o fillMaxSize() por fillMaxHeight()
+                    .padding(16.dp)
             )
 
             // --- Coluna da Direita: Controle do Motor (Vertical) ---
@@ -283,12 +309,18 @@ fun MenuCentralUI(
                 modifier = Modifier.weight(1f)
             ) }
 
-
-        // --- Menu Suspenso para Dispositivos Bluetooth ---
-        Box {
-            OutlinedButton(onClick = { menuExpandido = true }) {
+// --- Menu Suspenso para Dispositivos Bluetooth ---
+        Box(modifier = Modifier.fillMaxWidth()) { // <-- Adicionado fillMaxWidth ao Box
+            OutlinedButton(
+                onClick = { menuExpandido = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 val nomeDispositivo = dispositivosPareados.find { it.second == macAddressSelecionado }?.first
-                Text(nomeDispositivo ?: "Selecione um Dispositivo", color = CoresApp.corDoTexto)
+
+                Text(
+                    text = nomeDispositivo ?: "Selecione um Dispositivo",
+                    color = CoresApp.corDoTexto
+                )
             }
             DropdownMenu(
                 expanded = menuExpandido,
